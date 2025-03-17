@@ -1,59 +1,71 @@
 import streamlit as st
 import folium
 from streamlit_folium import folium_static
-import pandas as pd
-from gtfs_static import get_route_shape, list_routes
-from gtfs_realtime import get_vehicle_positions
+from gtfs_static import load_static_gtfs
+from gtfs_realtime import get_realtime_data, calculate_arrival_delays
+import time
 
-# Streamlit Layout
+# Page Layout
 st.set_page_config(layout="wide")
 
-st.title("🚍 Real-time TransLink GTFS Map")
+# Load Static GTFS Data
+static_stops, shapes_df = load_static_gtfs()
 
-# Load routes from static GTFS
-routes = list_routes()
+# Sidebar for Route Selection
+st.sidebar.title("🚍 Select a Route")
+route_options = static_stops["route_short_name"].unique().tolist()
+selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
 
-# Route selection
-route_dict = {route["route_name"]: route["route_id"] for route in routes}
-selected_route_name = st.sidebar.selectbox("Select a Route", options=["None"] + list(route_dict.keys()))
-selected_route = route_dict.get(selected_route_name, None)
+# Fetch Realtime GTFS Data
+st.sidebar.write("🔄 Refreshing every 15 seconds...")
+realtime_df, error_msg = get_realtime_data()
 
-# Fetch GTFS-RT data
-vehicle_data = get_vehicle_positions()
+# Layout: Map (2/3 width) + Table (1/3 width)
+col1, col2 = st.columns([2, 1])
 
-# Filter real-time data for the selected route
-filtered_rt_data = vehicle_data[vehicle_data["route_id"] == selected_route] if selected_route else vehicle_data
+# Initialize Map (Grey Base Map)
+m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="cartodb positron")
 
-# Initialize map (2/3 left side)
-map_column, table_column = st.columns([2, 1])
+# Highlight Selected Route
+if selected_route != "None":
+    selected_route_id = static_stops.loc[static_stops["route_short_name"] == selected_route, "route_id"].values[0]
 
-with map_column:
-    m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="CartoDB positron")
+    # Get route shape
+    route_shape = shapes_df[shapes_df["shape_id"].str.contains(selected_route_id, na=False)]
+    
+    if not route_shape.empty:
+        route_coords = list(zip(route_shape["shape_pt_lat"], route_shape["shape_pt_lon"]))
+        folium.PolyLine(route_coords, color="blue", weight=4).add_to(m)
 
-    # Highlight selected route
-    if selected_route:
-        shape = get_route_shape(selected_route)
-        if shape:
-            folium.PolyLine(locations=[(lat, lon) for lon, lat in shape.coords], color="blue", weight=4).add_to(m)
+    # Filter real-time vehicles on selected route
+    realtime_filtered = realtime_df[realtime_df["route_id"] == selected_route_id]
 
-    # Add Real-time Vehicles
-    for _, vehicle in filtered_rt_data.iterrows():
+    # Add real-time vehicle positions
+    for _, row in realtime_filtered.iterrows():
         folium.Marker(
-            location=[vehicle["lat"], vehicle["lon"]],
-            popup=f"Vehicle ID: {vehicle['vehicle_id']}<br>Speed: {vehicle['speed']} km/h",
+            location=[row["lat"], row["lon"]],
+            popup=f"Vehicle ID: {row['vehicle_id']}<br>Speed: {row['speed']} km/h",
             icon=folium.Icon(color="red"),
         ).add_to(m)
 
+# Display Map
+with col1:
     folium_static(m)
 
-# Display Table (1/3 right side)
-with table_column:
-    if selected_route:
-        st.write(f"### Route Data for {selected_route_name}")
-        static_data = pd.DataFrame([{"route_id": selected_route, "route_name": selected_route_name}])
-        combined_data = pd.concat([static_data, filtered_rt_data], axis=1)
-    else:
-        st.write("### All Real-time Vehicles")
-        combined_data = filtered_rt_data
+# Merge Static and Realtime Data for Delay Calculation
+if not realtime_df.empty:
+    delay_df = calculate_arrival_delays(static_stops, realtime_df)
+else:
+    delay_df = static_stops  # Show static data if no real-time data available
 
-    st.dataframe(combined_data)
+# Display Data Table
+with col2:
+    st.write("### 📊 Route Data with Arrival Delays")
+    if error_msg:
+        st.error(error_msg)
+    else:
+        st.dataframe(delay_df[["route_short_name", "stop_sequence", "arrival_time", "departure_time", "realtime_timestamp", "arrival_delay"]])
+
+# Auto Refresh Every 15 Seconds
+time.sleep(15)
+st.experimental_rerun()
