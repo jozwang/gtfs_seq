@@ -1,16 +1,15 @@
 import pandas as pd
 import requests
-import os
 import zipfile
+import os
 import io
 from shapely.geometry import LineString
 
-# GTFS Data Source
 GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
 GTFS_CACHE_PATH = "gtfs_cache.zip"
 
 def download_gtfs():
-    """Download the GTFS ZIP file if not already cached."""
+    """Download GTFS ZIP if not cached."""
     if not os.path.exists(GTFS_CACHE_PATH):
         print("Downloading GTFS data...")
         response = requests.get(GTFS_ZIP_URL, stream=True)
@@ -33,12 +32,10 @@ def get_route_shape(route_id):
     shapes_df = extract_file_from_zip("shapes.txt")
 
     route_shapes = shapes_df[shapes_df["shape_id"].str.contains(route_id, na=False)]
-
     if route_shapes.empty:
         return None
 
-    linestring = LineString(zip(route_shapes["shape_pt_lon"], route_shapes["shape_pt_lat"]))
-    return linestring
+    return LineString(zip(route_shapes["shape_pt_lon"], route_shapes["shape_pt_lat"]))
 
 def list_routes():
     """Extract and list available routes from GTFS data."""
