@@ -46,7 +46,8 @@ def load_static_gtfs():
     return enriched_stops
 
 # Load static GTFS data
-static_stops = load_static_gtfs()
+# static_stops = load_static_gtfs()
+routes_df = extract_file(zip_obj, "routes.txt")
 
 # Streamlit App
 st.set_page_config(layout="wide")
@@ -54,4 +55,5 @@ st.title("GTFS Static Data Table")
 
 # Display Static GTFS Data
 table_height = min(600, len(static_stops) * 20)  # Adjust table height dynamically
-st.dataframe(static_stops, height=table_height)
+# st.dataframe(static_stops, height=table_height)
+st.dataframe(routes_df, height=table_height)
