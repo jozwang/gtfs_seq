@@ -1,74 +1,3 @@
-# import streamlit as st
-# import folium
-# from streamlit_folium import folium_static
-
-# from gtfs_realtime import get_realtime_data, calculate_arrival_delays
-# import time
-
-# # Page Layout
-# st.set_page_config(layout="wide")
-
-
-# # Sidebar for Route Selection
-# st.sidebar.title("🚍 Select a Route")
-# route_options = static_stops["route_short_name"].unique().tolist()
-# selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
-
-# # Fetch Realtime GTFS Data
-# st.sidebar.write("🔄 Refreshing every 15 seconds...")
-# realtime_df, error_msg = get_realtime_data()
-
-# # Layout: Map (2/3 width) + Table (1/3 width)
-# col1, col2 = st.columns([2, 1])
-
-# # Initialize Map (Grey Base Map)
-# m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="cartodb positron")
-
-# # Highlight Selected Route
-# if selected_route != "None":
-#     selected_route_id = static_stops.loc[static_stops["route_short_name"] == selected_route, "route_id"].values[0]
-
-#     # Get route shape
-#     route_shape = shapes_df[shapes_df["shape_id"].str.contains(selected_route_id, na=False)]
-    
-#     if not route_shape.empty:
-#         route_coords = list(zip(route_shape["shape_pt_lat"], route_shape["shape_pt_lon"]))
-#         folium.PolyLine(route_coords, color="blue", weight=4).add_to(m)
-
-#     # Filter real-time vehicles on selected route
-#     realtime_filtered = realtime_df[realtime_df["route_id"] == selected_route_id]
-
-#     # Add real-time vehicle positions
-#     for _, row in realtime_filtered.iterrows():
-#         folium.Marker(
-#             location=[row["lat"], row["lon"]],
-#             popup=f"Vehicle ID: {row['vehicle_id']}<br>Speed: {row['speed']} km/h",
-#             icon=folium.Icon(color="red"),
-#         ).add_to(m)
-
-# # Display Map
-# with col1:
-#     folium_static(m)
-
-# # Merge Static and Realtime Data for Delay Calculation
-# if not realtime_df.empty:
-#     delay_df = calculate_arrival_delays(static_stops, realtime_df)
-# else:
-#     delay_df = static_stops  # Show static data if no real-time data available
-
-# # Display Data Table
-# with col2:
-#     st.write("### 📊 Route Data with Arrival Delays")
-#     if error_msg:
-#         st.error(error_msg)
-#     else:
-#         st.dataframe(delay_df[["route_short_name", "stop_sequence", "arrival_time", "departure_time", "realtime_timestamp", "arrival_delay"]])
-
-# # Auto Refresh Every 15 Seconds
-# time.sleep(15)
-# st.experimental_rerun()
-
-
 import requests
 import pandas as pd
 import streamlit as st
@@ -77,7 +6,43 @@ from streamlit_folium import folium_static
 from google.transit import gtfs_realtime_pb2
 from datetime import datetime
 import time
-from gtfs_static import load_static_gtfs
+import zipfile
+import io
+
+# GTFS Static Data URL
+GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
+
+def download_gtfs():
+    """Download GTFS ZIP file and return as an in-memory object."""
+    response = requests.get(GTFS_ZIP_URL)
+    if response.status_code == 200:
+        return zipfile.ZipFile(io.BytesIO(response.content))
+    else:
+        raise Exception("Failed to download GTFS data.")
+
+def extract_file(zip_obj, filename):
+    """Extract a file from a GTFS ZIP archive and return as a DataFrame."""
+    with zip_obj.open(filename) as file:
+        return pd.read_csv(file)
+
+def load_static_gtfs():
+    """Load static GTFS data and return scheduled stops, routes, and shapes."""
+    zip_obj = download_gtfs()
+
+    # Extract necessary files
+    routes_df = extract_file(zip_obj, "routes.txt")
+    shapes_df = extract_file(zip_obj, "shapes.txt")
+    trips_df = extract_file(zip_obj, "trips.txt")
+    stop_times_df = extract_file(zip_obj, "stop_times.txt")
+
+    # Merge stop times with trip details
+    enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
+    enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
+
+    # Convert arrival times to datetime
+    enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
+
+    return enriched_stops, shapes_df
 
 # Define GTFS-RT feed URL
 GTFS_RT_VEHICLE_POSITIONS_URL = "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions/Bus"
@@ -128,22 +93,8 @@ def merge_static_realtime(static_stops, realtime_data):
 st.set_page_config(layout="wide")
 st.title("GTFS Realtime and Static Data Merge")
 
-# # Placeholder for static GTFS stops data
-# static_stops = pd.DataFrame({
-#     "Trip ID": ["trip_1", "trip_2"],
-#     "Stop ID": ["stop_101", "stop_102"],
-#     "arrival_time": ["12:30:00", "13:00:00"]
-# })
-# Load Static GTFS Data
+# Load static GTFS data
 static_stops, shapes_df = load_static_gtfs()
-
-
-# Sidebar Route Selection
-st.sidebar.title("🚍 Select a Route")
-route_options = static_stops["Trip ID"].unique().tolist()
-selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
-
-st.sidebar.write("🔄 Refreshing every 15 seconds...")
 
 # Fetch Realtime GTFS Data
 realtime_data, error = get_realtime_data()
@@ -152,6 +103,17 @@ if error:
 else:
     st.write("Real-time Vehicle Positions:")
     st.dataframe(realtime_data)
+
+# Merge and Update Static Stops
+if not realtime_data.empty:
+    static_stops = merge_static_realtime(static_stops, realtime_data)
+
+# Sidebar Route Selection
+st.sidebar.title("🚍 Select a Route")
+route_options = static_stops["Trip ID"].unique().tolist()
+selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
+
+st.sidebar.write("🔄 Refreshing every 15 seconds...")
 
 # Initialize Map
 col1, col2 = st.columns([2, 1])
@@ -171,14 +133,11 @@ if selected_route != "None":
 with col1:
     folium_static(m)
 
-# Merge and Display Data
-if not realtime_data.empty:
-    merged_data = merge_static_realtime(static_stops, realtime_data)
-    with col2:
-        st.write("### 📊 Route Data with Arrival Delays")
-        st.dataframe(merged_data)
+# Display Merged Data
+with col2:
+    st.write("### 📊 Route Data with Arrival Delays")
+    st.dataframe(static_stops)
 
 # Auto Refresh Every 15 Seconds
 time.sleep(15)
 st.experimental_rerun()
-
