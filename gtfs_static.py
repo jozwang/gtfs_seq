@@ -1,8 +1,5 @@
-import requests
 import pandas as pd
-import streamlit as st
-import folium
-from streamlit_folium import folium_static
+import requests
 import zipfile
 import io
 
@@ -45,25 +42,12 @@ def load_static_gtfs():
         # Merge stop times with trip details
         enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
         enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
-        enriched_stops = enriched_stops.merge(stops_df, on="stop_id", how="left",  indicator=True)
+        stops_data = enriched_stops.merge(stops_df, on="stop_id", how="left",  indicator=True)
 
         # Convert arrival times to datetime
-        enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
+        stops_data["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
     else:
-        enriched_stops = pd.DataFrame()
+        stops_data = pd.DataFrame()
 
-    return enriched_stops 
+    return stops_data 
 
-# Load static GTFS data
-static_stops = load_static_gtfs()
-
-# Streamlit App
-st.set_page_config(layout="wide")
-st.title("GTFS Static Data Table")
-
-# Display Static GTFS Data
-if not static_stops.empty:
-    table_height = min(600, len(static_stops) * 20)  # Adjust table height dynamically
-    st.dataframe(static_stops, height=table_height)
-else:
-    st.write("No GTFS static data available.")
