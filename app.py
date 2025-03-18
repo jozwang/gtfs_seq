@@ -1,15 +1,13 @@
 # import streamlit as st
 # import folium
 # from streamlit_folium import folium_static
-# from gtfs_static import load_static_gtfs
+
 # from gtfs_realtime import get_realtime_data, calculate_arrival_delays
 # import time
 
 # # Page Layout
 # st.set_page_config(layout="wide")
 
-# # Load Static GTFS Data
-# static_stops, shapes_df = load_static_gtfs()
 
 # # Sidebar for Route Selection
 # st.sidebar.title("🚍 Select a Route")
@@ -79,6 +77,7 @@ from streamlit_folium import folium_static
 from google.transit import gtfs_realtime_pb2
 from datetime import datetime
 import time
+from gtfs_static import load_static_gtfs
 
 # Define GTFS-RT feed URL
 GTFS_RT_VEHICLE_POSITIONS_URL = "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions/Bus"
@@ -129,12 +128,15 @@ def merge_static_realtime(static_stops, realtime_data):
 st.set_page_config(layout="wide")
 st.title("GTFS Realtime and Static Data Merge")
 
-# Placeholder for static GTFS stops data
-static_stops = pd.DataFrame({
-    "Trip ID": ["trip_1", "trip_2"],
-    "Stop ID": ["stop_101", "stop_102"],
-    "arrival_time": ["12:30:00", "13:00:00"]
-})
+# # Placeholder for static GTFS stops data
+# static_stops = pd.DataFrame({
+#     "Trip ID": ["trip_1", "trip_2"],
+#     "Stop ID": ["stop_101", "stop_102"],
+#     "arrival_time": ["12:30:00", "13:00:00"]
+# })
+# Load Static GTFS Data
+static_stops, shapes_df = load_static_gtfs()
+
 
 # Sidebar Route Selection
 st.sidebar.title("🚍 Select a Route")
