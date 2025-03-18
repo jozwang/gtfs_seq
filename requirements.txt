@@ -5,3 +5,6 @@ pandas
 shapely
 folium
 streamlit-folium
+time
+zipfile
+io
