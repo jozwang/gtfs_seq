@@ -1,3 +1,14 @@
+import requests
+import pandas as pd
+import streamlit as st
+import folium
+from streamlit_folium import folium_static
+from google.transit import gtfs_realtime_pb2
+from datetime import datetime
+import time
+import zipfile
+import io
+
 # GTFS Static Data URL
 GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
 
@@ -19,7 +30,7 @@ def extract_file(zip_obj, filename):
         return pd.read_csv(file, dtype=str, low_memory=False)
 
 def load_static_gtfs():
-    """Load static GTFS data and return scheduled stops, routes, and shapes."""
+    """Load static GTFS data and return scheduled stops and routes."""
     zip_obj = download_gtfs()
     file_list = list_gtfs_files(zip_obj)
     
@@ -29,27 +40,23 @@ def load_static_gtfs():
     
     # Extract necessary files if they exist
     routes_df = extract_file(zip_obj, "routes.txt") if "routes.txt" in file_list else pd.DataFrame()
-    shapes_df = extract_file(zip_obj, "shapes.txt") if "shapes.txt" in file_list else pd.DataFrame()
     trips_df = extract_file(zip_obj, "trips.txt") if "trips.txt" in file_list else pd.DataFrame()
     stop_times_df = extract_file(zip_obj, "stop_times.txt") if "stop_times.txt" in file_list else pd.DataFrame()
 
-    if not stop_times_df.empty and not trips_df.empty and not routes_df.empty and not shapes_df.empty:
+    if not stop_times_df.empty and not trips_df.empty and not routes_df.empty:
         # Merge stop times with trip details
-        enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="inner")
-        enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="inner")
-        # enriched_stops = enriched_stops.merge(shapes_df, on="shape_id", how="inner")
+        enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
+        enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
 
         # Convert arrival times to datetime
         enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
     else:
         enriched_stops = pd.DataFrame()
 
-    return enriched_stops 
-# , shapes_df
+    return enriched_stops
 
 # Load static GTFS data
-# static_stops, shapes_df = load_static_gtfs()
-static_stops= load_static_gtfs()
+static_stops = load_static_gtfs()
 
 # Streamlit App
 st.set_page_config(layout="wide")
