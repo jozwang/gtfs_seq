@@ -23,7 +23,7 @@ def download_gtfs():
 def extract_file(zip_obj, filename):
     """Extract a file from a GTFS ZIP archive and return as a DataFrame."""
     with zip_obj.open(filename) as file:
-        return pd.read_csv(file)
+        return pd.read_csv(file, dtype=str, low_memory=False)
 
 def load_static_gtfs():
     """Load static GTFS data and return scheduled stops, routes, and shapes."""
