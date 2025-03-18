@@ -38,14 +38,15 @@ def load_static_gtfs():
     # Merge stop times with trip details
     enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
     enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
+    enriched_stops = enriched_stops.merge(shapes_df, on="shape_id", how="left")
 
     # Convert arrival times to datetime
-    enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
+    # enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
 
-    return enriched_stops, shapes_df
+    return enriched_stops
 
 # Load static GTFS data
-static_stops, shapes_df = load_static_gtfs()
+static_stops = load_static_gtfs()
 
 # Streamlit App
 st.set_page_config(layout="wide")
