@@ -19,18 +19,25 @@ def get_realtime_data():
     vehicles = []
     timestamp = datetime.utcnow()  # Capture the real-time timestamp
 
-    for entity in feed.entity:
-        if entity.HasField("vehicle"):
-            vehicle = entity.vehicle
-            vehicles.append({
-                "trip_id": vehicle.trip.trip_id,
-                "route_id": vehicle.trip.route_id,
-                "vehicle_id": vehicle.vehicle.id,
-                "lat": vehicle.position.latitude,
-                "lon": vehicle.position.longitude,
-                "speed": vehicle.position.speed if vehicle.position.HasField("speed") else None,
-                "realtime_timestamp": timestamp
-            })
+        for entity in feed.entity:
+            if entity.HasField("vehicle"):
+                vehicle = entity.vehicle
+                trip = vehicle.trip
+                position = vehicle.position                
+
+
+                data.append({
+                    "Vehicle ID": vehicle.vehicle.id,
+                    "Label": vehicle.vehicle.label,
+                    "Latitude": vehicle.position.latitude,
+                    "Longitude": vehicle.position.longitude,
+                    "Route ID": trip.route_id ,
+                    "Trip ID": trip.trip_id ,
+                    "Stop Sequence": vehicle.current_stop_sequence ,
+                    "Stop ID": vehicle.stop_id ,
+                    "current_status": vehicle.current_status ,
+                    "Timestamp": vehicle.timestamp if vehicle.HasField("timestamp") else "Unknown"
+                })
 
     return pd.DataFrame(vehicles), None
 
