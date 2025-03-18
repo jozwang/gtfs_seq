@@ -9,6 +9,7 @@ import time
 import zipfile
 import io
 
+
 # GTFS Static Data URL
 GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
 
@@ -23,7 +24,7 @@ def download_gtfs():
 def extract_file(zip_obj, filename):
     """Extract a file from a GTFS ZIP archive and return as a DataFrame."""
     with zip_obj.open(filename) as file:
-        return pd.read_csv(file)
+        return pd.read_csv(file, dtype=str, low_memory=False)
 
 def load_static_gtfs():
     """Load static GTFS data and return scheduled stops, routes, and shapes."""
@@ -38,11 +39,15 @@ def load_static_gtfs():
     # Merge stop times with trip details
     enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
     enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
+    enriched_stops = enriched_stops.merge(shapes_df, on="shape_id", how="left")
 
     # Convert arrival times to datetime
-    enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
+    # enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
 
-    return enriched_stops, shapes_df
+    return enriched_stops
+
+# Load static GTFS data
+# static_stops = load_static_gtfs()
 
 # Define GTFS-RT feed URL
 GTFS_RT_VEHICLE_POSITIONS_URL = "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions/Bus"
@@ -94,7 +99,7 @@ st.set_page_config(layout="wide")
 st.title("GTFS Realtime and Static Data Merge")
 
 # Load static GTFS data
-static_stops, shapes_df = load_static_gtfs()
+static_stops = load_static_gtfs()
 
 # Fetch Realtime GTFS Data
 realtime_data, error = get_realtime_data()
