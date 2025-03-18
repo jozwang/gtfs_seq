@@ -40,20 +40,22 @@ def load_static_gtfs():
     
     # Extract necessary files if they exist
     routes_df = extract_file(zip_obj, "routes.txt") if "routes.txt" in file_list else pd.DataFrame()
+    stops_df = extract_file(zip_obj, "stops.txt") if "stops.txt" in file_list else pd.DataFrame()
     trips_df = extract_file(zip_obj, "trips.txt") if "trips.txt" in file_list else pd.DataFrame()
     stop_times_df = extract_file(zip_obj, "stop_times.txt") if "stop_times.txt" in file_list else pd.DataFrame()
 
-    if not stop_times_df.empty and not trips_df.empty and not routes_df.empty:
+    if not stop_times_df.empty and not trips_df.empty and not routes_df.empty and not stops_df.empty:
         # Merge stop times with trip details
         enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
         enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
+        enriched_stops = enriched_stops.merge(stops_df, on="stop_id", how="left",  indicator=True)
 
         # Convert arrival times to datetime
         enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
     else:
         enriched_stops = pd.DataFrame()
 
-    return enriched_stops
+    return enriched_stops 
 
 # Load static GTFS data
 static_stops = load_static_gtfs()
