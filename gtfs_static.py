@@ -1,8 +1,13 @@
-import pandas as pd
 import requests
+import pandas as pd
+import streamlit as st
+import folium
+from streamlit_folium import folium_static
+from google.transit import gtfs_realtime_pb2
+from datetime import datetime
+import time
 import zipfile
 import io
-from shapely.geometry import LineString
 
 # GTFS Static Data URL
 GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
@@ -38,3 +43,14 @@ def load_static_gtfs():
     enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
 
     return enriched_stops, shapes_df
+
+# Load static GTFS data
+static_stops, shapes_df = load_static_gtfs()
+
+# Streamlit App
+st.set_page_config(layout="wide")
+st.title("GTFS Static Data Table")
+
+# Display Static GTFS Data
+table_height = min(600, len(static_stops) * 20)  # Adjust table height dynamically
+st.dataframe(static_stops, height=table_height)
