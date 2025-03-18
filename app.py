@@ -1,91 +1,61 @@
-import requests
-import pandas as pd
 import streamlit as st
 import folium
 from streamlit_folium import folium_static
-from google.transit import gtfs_realtime_pb2
-from datetime import datetime
+from gtfs_static import load_static_gtfs
+from gtfs_realtime import get_realtime_vehicles, get_trip_updates
 import time
-import zipfile
-import io
 
-# GTFS Static Data URL
-GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
-
-def download_gtfs():
-    """Download GTFS ZIP file and return as an in-memory object."""
-    response = requests.get(GTFS_ZIP_URL)
-    if response.status_code == 200:
-        return zipfile.ZipFile(io.BytesIO(response.content))
-    else:
-        raise Exception("Failed to download GTFS data.")
-
-def list_gtfs_files(zip_obj):
-    """List all files in the GTFS ZIP archive."""
-    return zip_obj.namelist()
-
-def extract_file(zip_obj, filename):
-    """Extract a file from a GTFS ZIP archive and return as a DataFrame."""
-    with zip_obj.open(filename) as file:
-        return pd.read_csv(file, dtype=str, low_memory=False)
-
-def load_static_gtfs():
-    """Load static GTFS data and return scheduled stops and routes."""
-    zip_obj = download_gtfs()
-    file_list = list_gtfs_files(zip_obj)
-    
-    # Extract necessary files if they exist
-    routes_df = extract_file(zip_obj, "routes.txt") if "routes.txt" in file_list else pd.DataFrame()
-    stops_df = extract_file(zip_obj, "stops.txt") if "stops.txt" in file_list else pd.DataFrame()
-    trips_df = extract_file(zip_obj, "trips.txt") if "trips.txt" in file_list else pd.DataFrame()
-    stop_times_df = extract_file(zip_obj, "stop_times.txt") if "stop_times.txt" in file_list else pd.DataFrame()
-
-    if not stop_times_df.empty and not trips_df.empty and not routes_df.empty and not stops_df.empty:
-        # Merge stop times with trip details
-        enriched_stops = stop_times_df.merge(trips_df, on="trip_id", how="left")
-        enriched_stops = enriched_stops.merge(routes_df, on="route_id", how="left")
-        enriched_stops = enriched_stops.merge(stops_df, on="stop_id", how="left",  indicator=True)
-
-        # Convert arrival times to datetime
-        enriched_stops["arrival_time"] = pd.to_datetime(enriched_stops["arrival_time"], format="%H:%M:%S", errors="coerce")
-    else:
-        enriched_stops = pd.DataFrame()
-
-    return enriched_stops 
-
-# Load static GTFS data
-static_stops = load_static_gtfs()
-
-# Streamlit App
+# Set up page layout
 st.set_page_config(layout="wide")
-st.title("GTFS Realtime and Static Data Merge")
+st.title("🚍 Real-time GTFS Tracker (TransLink)")
 
-# Move Map to the Top
-m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="cartodb positron")
+# Load GTFS Data
+static_stops = load_static_gtfs()
 
 # Sidebar Route Selection
 st.sidebar.title("🚍 Select a Route")
-if "route_short_name" in static_stops.columns:
-    route_options = static_stops["route_short_name"].dropna().unique().tolist()
-    selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
+route_options = static_stops["route_short_name"].dropna().unique().tolist()
+selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
+
+# Fetch real-time vehicle positions & trip updates
+st.sidebar.write("🔄 Refreshing every 15 seconds...")
+realtime_df, error_msg = get_realtime_vehicles()
+trip_updates_df, trip_update_err = get_trip_updates()
+
+# Initialize Map
+m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="cartodb positron")
+
+# Highlight Selected Route
+if selected_route != "None":
+    filtered_stops = static_stops[static_stops["route_short_name"] == selected_route]
     
-    # Filter stops for selected route and add to map
-    if selected_route != "None":
-        filtered_stops = static_stops[static_stops["route_short_name"] == selected_route]
-        for _, row in filtered_stops.iterrows():
-            folium.Marker(
-                location=[float(row["stop_lat"]), float(row["stop_lon"])],
-                popup=f"Stop: {row['stop_name']} (ID: {row['stop_id']})",
-                icon=folium.Icon(color="blue"),
-            ).add_to(m)
+    for _, row in filtered_stops.iterrows():
+        folium.Marker(
+            location=[float(row["stop_lat"]), float(row["stop_lon"])],
+            popup=f"Stop: {row['stop_name']} (ID: {row['stop_id']})",
+            icon=folium.Icon(color="blue"),
+        ).add_to(m)
+
+    # Filter real-time vehicles for the selected route
+    realtime_filtered = realtime_df[realtime_df["route_id"] == filtered_stops.iloc[0]["route_id"]]
+
+    for _, row in realtime_filtered.iterrows():
+        folium.Marker(
+            location=[row["lat"], row["lon"]],
+            popup=f"Vehicle: {row['vehicle_id']}<br>Speed: {row['speed']} km/h",
+            icon=folium.Icon(color="red"),
+        ).add_to(m)
 
 # Display Map
 folium_static(m)
 
-# Display Static GTFS Data
-st.write("### 📊 Route Data Table")
-if not static_stops.empty:
-    table_height = min(600, len(static_stops) * 20)  # Adjust table height dynamically
-    st.dataframe(static_stops, height=table_height)
+# Display Trip Updates
+st.write("### 🚦 Trip Updates & Delays")
+if not trip_updates_df.empty:
+    st.dataframe(trip_updates_df)
 else:
-    st.write("No GTFS static data available.")
+    st.write("No trip updates available.")
+
+# Auto-refresh every 15 seconds
+time.sleep(15)
+st.experimental_rerun()
