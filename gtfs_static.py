@@ -3,9 +3,6 @@ import pandas as pd
 import streamlit as st
 import folium
 from streamlit_folium import folium_static
-from google.transit import gtfs_realtime_pb2
-from datetime import datetime
-import time
 import zipfile
 import io
 
