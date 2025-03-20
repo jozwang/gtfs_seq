@@ -9,23 +9,15 @@ import pandas as pd
 st.set_page_config(layout="wide")
 st.title("🚍 Real-time GTFS Tracker (TransLink)")
 
-# Add a refresh button and auto-refresh functionality
-if "refresh_counter" not in st.session_state:
-    st.session_state.refresh_counter = 0
-    st.session_state.auto_refresh = False
+# Add refresh button
+refresh = st.sidebar.button("🔄 Refresh Data")
 
-# Sidebar controls
-st.sidebar.button("🔄 Refresh Data", on_click=lambda: st.session_state.update(refresh_counter=st.session_state.refresh_counter + 1))
-st.sidebar.checkbox("Auto-refresh", key="auto_refresh")
-
-# Cache static data to prevent reloading on each refresh
-@st.cache_data(ttl=3600)  # Cache for 1 hour
-def get_static_data():
-    return load_static_gtfs()
+# Add auto-refresh checkbox
+auto_refresh = st.sidebar.checkbox("Auto-refresh every 30 seconds")
 
 # Load GTFS Static Data
 with st.spinner("Loading static GTFS data..."):
-    static_stops = get_static_data()
+    static_stops = load_static_gtfs()
     
     if static_stops.empty:
         st.error("Could not load static GTFS data. Please try again later.")
@@ -73,7 +65,7 @@ if selected_route != "None" and not static_stops.empty and not realtime_df.empty
                 folium.Marker(
                     location=[float(row["stop_lat"]), float(row["stop_lon"])],
                     popup=f"Stop: {row['stop_name']} (ID: {row['stop_id']})",
-                    icon=folium.Icon(color="blue", icon="info-sign"),
+                    icon=folium.Icon(color="blue"),
                 ).add_to(m)
             except (ValueError, TypeError) as e:
                 continue
@@ -90,7 +82,7 @@ if selected_route != "None" and not static_stops.empty and not realtime_df.empty
                     folium.Marker(
                         location=[row["lat"], row["lon"]],
                         popup=f"Vehicle: {row['vehicle_id']}<br>Speed: {row.get('speed', 'N/A')} km/h",
-                        icon=folium.Icon(color="red", icon="info-sign"),
+                        icon=folium.Icon(color="red"),
                     ).add_to(m)
                 except (ValueError, TypeError) as e:
                     continue
@@ -121,7 +113,7 @@ if not trip_updates_df.empty:
 else:
     st.info("No trip updates available.")
 
-# Add auto-refresh functionality
-if st.session_state.auto_refresh:
-    st.sidebar.write("Auto-refreshing every 30 seconds...")
-    st.experimental_rerun()
+# Add simple auto-refresh
+if auto_refresh:
+    st.empty()
+    st.rerun()
