@@ -3,18 +3,20 @@ import folium
 from streamlit_folium import folium_static
 from gtfs_static import load_static_gtfs
 from gtfs_realtime import get_realtime_vehicles, get_trip_updates
-import time
 import pandas as pd
 
 # Set up page layout
 st.set_page_config(layout="wide")
 st.title("🚍 Real-time GTFS Tracker (TransLink)")
 
-# Add a refresh button
-refresh = st.sidebar.button("🔄 Refresh Data")
+# Add a refresh button and auto-refresh functionality
+if "refresh_counter" not in st.session_state:
+    st.session_state.refresh_counter = 0
+    st.session_state.auto_refresh = False
 
-# Add auto-refresh checkbox
-auto_refresh = st.sidebar.checkbox("Auto-refresh every 30 seconds", value=True)
+# Sidebar controls
+st.sidebar.button("🔄 Refresh Data", on_click=lambda: st.session_state.update(refresh_counter=st.session_state.refresh_counter + 1))
+st.sidebar.checkbox("Auto-refresh", key="auto_refresh")
 
 # Cache static data to prevent reloading on each refresh
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -71,7 +73,7 @@ if selected_route != "None" and not static_stops.empty and not realtime_df.empty
                 folium.Marker(
                     location=[float(row["stop_lat"]), float(row["stop_lon"])],
                     popup=f"Stop: {row['stop_name']} (ID: {row['stop_id']})",
-                    icon=folium.Icon(color="blue", icon="bus", prefix="fa"),
+                    icon=folium.Icon(color="blue", icon="info-sign"),
                 ).add_to(m)
             except (ValueError, TypeError) as e:
                 continue
@@ -88,7 +90,7 @@ if selected_route != "None" and not static_stops.empty and not realtime_df.empty
                     folium.Marker(
                         location=[row["lat"], row["lon"]],
                         popup=f"Vehicle: {row['vehicle_id']}<br>Speed: {row.get('speed', 'N/A')} km/h",
-                        icon=folium.Icon(color="red", icon="bus", prefix="fa"),
+                        icon=folium.Icon(color="red", icon="info-sign"),
                     ).add_to(m)
                 except (ValueError, TypeError) as e:
                     continue
@@ -119,20 +121,7 @@ if not trip_updates_df.empty:
 else:
     st.info("No trip updates available.")
 
-# Auto-refresh using Streamlit's rerun functionality
-if auto_refresh:
-    st.sidebar.write("Next refresh in 30 seconds...")
-    time_placeholder = st.sidebar.empty()
-    
-    # Create a countdown timer
-    if "counter" not in st.session_state:
-        st.session_state.counter = 30
-    
-    if st.session_state.counter <= 0:
-        st.session_state.counter = 30
-        st.experimental_rerun()
-    else:
-        st.session_state.counter -= 1
-        time_placeholder.write(f"Refreshing in {st.session_state.counter} seconds...")
-        time.sleep(1)
-        st.experimental_rerun()
+# Add auto-refresh functionality
+if st.session_state.auto_refresh:
+    st.sidebar.write("Auto-refreshing every 30 seconds...")
+    st.experimental_rerun()
