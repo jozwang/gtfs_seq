@@ -45,6 +45,9 @@ with st.spinner("Fetching real-time data..."):
     
     if trip_updates_df.empty:
         st.warning("No trip updates available.")
+    
+    if vehicle_updates_df.empty:
+        st.warning("No vehicle updates available.")
 
 # Initialize Map
 m = folium.Map(location=[-28.0167, 153.4000], zoom_start=12, tiles="cartodb positron")
@@ -99,11 +102,13 @@ folium_static(m)
 
 # Display Trip Updates
 st.subheader("🚦 Trip Updates & Delays")
-if not trip_updates_df.empty:
+# if not trip_updates_df.empty:
+if not vehicle_updates_df.empty:
     # Filter trip updates for the selected route if a route is selected
     if selected_route != "None":
         route_ids = static_stops[static_stops["route_short_name"] == selected_route]["route_id"].unique().tolist()
-        filtered_updates = trip_updates_df[trip_updates_df["route_id"].isin(route_ids)]
+        # filtered_updates = trip_updates_df[trip_updates_df["route_id"].isin(route_ids)]
+        filtered_updates = vehicle_updates_df[vehicle_updates_df["route_id"].isin(route_ids)]
         
         if not filtered_updates.empty:
             st.dataframe(filtered_updates)
