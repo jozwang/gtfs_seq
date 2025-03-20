@@ -1,127 +1,129 @@
 import streamlit as st
+import pandas as pd
+import requests
+import zipfile
+import io
 import folium
 from streamlit_folium import folium_static
-from gtfs_static import load_static_gtfs
-from gtfs_realtime import get_realtime_vehicles, get_trip_updates, get_vehicle_updates
-import pandas as pd
+from google.transit import gtfs_realtime_pb2
+from datetime import datetime, timedelta
+import time
+import pytz
+import pydeck as pdk
 
-# Set up page layout
-st.set_page_config(layout="wide")
-st.title("🚍 Real-time GTFS Tracker (TransLink)")
+# GTFS Static Data URL
+GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
 
-# Add refresh button
-refresh = st.sidebar.button("🔄 Refresh Data")
+def download_gtfs():
+    """Download GTFS ZIP file and return as an in-memory object."""
+    try:
+        response = requests.get(GTFS_ZIP_URL, timeout=10)
+        response.raise_for_status()
+        return zipfile.ZipFile(io.BytesIO(response.content))
+    except requests.RequestException as e:
+        st.error(f"Error downloading GTFS data: {e}")
+        return None
 
-# Add auto-refresh checkbox
-auto_refresh = st.sidebar.checkbox("Auto-refresh every 30 seconds")
+def extract_file(zip_obj, filename):
+    """Extract a file from GTFS ZIP archive and return as a DataFrame."""
+    try:
+        with zip_obj.open(filename) as file:
+            return pd.read_csv(file, dtype=str, low_memory=False)
+    except Exception as e:
+        return pd.DataFrame()
 
-# Load GTFS Static Data
-with st.spinner("Loading static GTFS data..."):
-    static_stops = load_static_gtfs()
+def load_gtfs_data():
+    """Load GTFS data."""
+    zip_obj = download_gtfs()
+    if not zip_obj:
+        return None, None, None, None, None
+
+    routes_df = extract_file(zip_obj, "routes.txt")
+    stops_df = extract_file(zip_obj, "stops.txt")
+    trips_df = extract_file(zip_obj, "trips.txt")
+    stop_times_df = extract_file(zip_obj, "stop_times.txt")
+    shapes_df = extract_file(zip_obj, "shapes.txt")
     
-    if static_stops.empty:
-        st.error("Could not load static GTFS data. Please try again later.")
-        st.stop()
+    return routes_df, stops_df, trips_df, stop_times_df, shapes_df
 
-# Sidebar Route Selection
-st.sidebar.title("🚍 Select a Route")
-route_options = static_stops["route_short_name"].dropna().unique().tolist()
-if route_options:
-    route_options.sort()
-    # selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
-    selected_route = st.sidebar.selectbox("Choose a Route", route_options, index=route_options.index("777") if "777" in route_options else 0)
-else:
-    st.error("No routes found in static data.")
-    st.stop()
+def fetch_gtfs_rt(url):
+    """Fetch GTFS-RT data."""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.content
+    except requests.RequestException:
+        return None
 
-# Fetch real-time vehicle positions & trip updates
-with st.spinner("Fetching real-time data..."):
-    realtime_df = get_realtime_vehicles()
-    trip_updates_df = get_trip_updates()
-    vehicle_updates_df=get_vehicle_updates()
-
-    if realtime_df.empty:
-        st.warning("No real-time vehicle data available.")
+def get_realtime_vehicles():
+    """Fetch real-time vehicle positions."""
+    feed = gtfs_realtime_pb2.FeedMessage()
+    content = fetch_gtfs_rt("https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions/Bus")
+    if not content:
+        return pd.DataFrame()
     
-    if trip_updates_df.empty:
-        st.warning("No trip updates available.")
+    feed.ParseFromString(content)
+    vehicles = []
+    for entity in feed.entity:
+        if entity.HasField("vehicle"):
+            vehicle = entity.vehicle
+            vehicles.append({
+                "trip_id": vehicle.trip.trip_id,
+                "route_id": vehicle.trip.route_id,
+                "vehicle_id": vehicle.vehicle.label,
+                "lat": vehicle.position.latitude,
+                "lon": vehicle.position.longitude,
+                "status": vehicle.current_status,
+                "timestamp": datetime.fromtimestamp(vehicle.timestamp, pytz.timezone('Australia/Brisbane')).strftime('%Y-%m-%d %H:%M:%S %Z') if vehicle.HasField("timestamp") else "Unknown"
+            })
+    return pd.DataFrame(vehicles)
+
+def plot_map(vehicles_df, route_shapes=None, route_stops=None):
+    """Plot real-time vehicles and optionally route path on a map."""
+    map_center = [vehicles_df["lat"].mean(), vehicles_df["lon"].mean()] if not vehicles_df.empty else [-27.5, 153.0]
+    m = folium.Map(location=map_center, zoom_start=12)
     
-    if vehicle_updates_df.empty:
-        st.warning("No vehicle updates available.")
-
-# Initialize Map
-m = folium.Map(location=[-28.0167, 153.4000], zoom_start=12, tiles="cartodb positron")
-
-# Display vehicle counts
-if not realtime_df.empty:
-    st.sidebar.write(f"Active vehicles: {len(realtime_df)}")
-
-# Highlight Selected Route
-if selected_route != "None" and not static_stops.empty and not realtime_df.empty:
-    filtered_stops = static_stops[static_stops["route_short_name"] == selected_route]
+    for _, row in vehicles_df.iterrows():
+        folium.Marker(
+            location=[row["lat"], row["lon"]],
+            icon=folium.Icon(color="blue", icon="bus", prefix="fa"),
+            popup=f"Vehicle {row['vehicle_id']} on Route {row['route_id']}"
+        ).add_to(m)
     
-    if not filtered_stops.empty:
-        # Extract route_id for the selected route
-        route_ids = filtered_stops["route_id"].unique().tolist()
+    if route_shapes is not None and not route_shapes.empty:
+        for _, row in route_shapes.iterrows():
+            folium.PolyLine(
+                [[row["shape_pt_lat"], row["shape_pt_lon"]], [row["next_lat"], row["next_lon"]]],
+                color="red",
+                weight=3
+            ).add_to(m)
+    
+    folium_static(m)
+
+# Streamlit UI
+st.title("Public Transport Real-Time and Static Data Visualization")
+
+routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
+vehicles_df = get_realtime_vehicles()
+
+if not vehicles_df.empty:
+    route_options = ["All Routes"] + sorted(vehicles_df["route_id"].unique())
+    selected_route = st.selectbox("Select a Route", route_options)
+    
+    if selected_route != "All Routes" and trips_df is not None:
+        directions = trips_df[trips_df["route_id"] == selected_route]["direction_id"].unique()
+        selected_direction = st.radio("Select Direction", directions)
         
-        # Create stops markers
-        for _, row in filtered_stops.iterrows():
-            try:
-                folium.Marker(
-                    location=[float(row["stop_lat"]), float(row["stop_lon"])],
-                    popup=f"Stop: {row['stop_name']} (ID: {row['stop_id']})",
-                    icon=folium.Icon(color="blue"),
-                ).add_to(m)
-            except (ValueError, TypeError) as e:
-                continue
-
-        # Filter real-time vehicles for the selected route
-        realtime_filtered = realtime_df[realtime_df["route_id"].isin(route_ids)]
+        route_shapes = shapes_df[shapes_df["shape_id"].isin(
+            trips_df[(trips_df["route_id"] == selected_route) & (trips_df["direction_id"] == str(selected_direction))]["shape_id"].unique()
+        )]
         
-        if not realtime_filtered.empty:
-            st.sidebar.write(f"Vehicles on route {selected_route}: {len(realtime_filtered)}")
+        if not route_shapes.empty:
+            route_shapes = route_shapes.sort_values(by=["shape_id", "shape_pt_sequence"])
+            route_shapes["next_lat"] = route_shapes["shape_pt_lat"].shift(-1)
+            route_shapes["next_lon"] = route_shapes["shape_pt_lon"].shift(-1)
+            route_shapes.dropna(subset=["next_lat", "next_lon"], inplace=True)
             
-            # Add vehicle markers
-            for _, row in realtime_filtered.iterrows():
-                try:
-                    folium.Marker(
-                        location=[row["lat"], row["lon"]],
-                        popup=f"Vehicle: {row['vehicle_id']}<br>Speed: {row.get('speed', 'N/A')} km/h",
-                        icon=folium.Icon(color="red"),
-                    ).add_to(m)
-                except (ValueError, TypeError) as e:
-                    continue
-        else:
-            st.warning(f"No real-time vehicle data available for route {selected_route}.")
+        plot_map(vehicles_df[vehicles_df["route_id"] == selected_route], route_shapes)
     else:
-        st.warning(f"No stop data found for route {selected_route}.")
-
-# Display Map
-st.subheader("🗺️ Live Map")
-folium_static(m)
-
-# Display Trip Updates
-st.subheader("🚦 Trip Updates & Delays")
-# if not trip_updates_df.empty:
-if not vehicle_updates_df.empty:
-    # Filter trip updates for the selected route if a route is selected
-    if selected_route != "None":
-        route_ids = static_stops[static_stops["route_short_name"] == selected_route]["route_id"].unique().tolist()
-        # filtered_updates = trip_updates_df[trip_updates_df["route_id"].isin(route_ids)]
-        filtered_updates = vehicle_updates_df[vehicle_updates_df["route_id"].isin(route_ids)]
-        
-        if not filtered_updates.empty:
-            st.dataframe(filtered_updates)
-        else:
-            st.info(f"No trip updates available for route {selected_route}.")
-    else:
-        # Display all trip updates
-        # st.dataframe(trip_updates_df)
-        st.dataframe(vehicle_updates_df)
-else:
-    st.info("No trip updates available.")
-
-# Add simple auto-refresh
-if auto_refresh:
-    st.empty()
-    st.rerun()
+        plot_map(vehicles_df)
