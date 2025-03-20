@@ -2,7 +2,7 @@ import streamlit as st
 import folium
 from streamlit_folium import folium_static
 from gtfs_static import load_static_gtfs
-from gtfs_realtime import get_realtime_vehicles, get_trip_updates
+from gtfs_realtime import get_realtime_vehicles, get_trip_updates, get_vehicle_updates
 import pandas as pd
 
 # Set up page layout
@@ -28,7 +28,8 @@ st.sidebar.title("🚍 Select a Route")
 route_options = static_stops["route_short_name"].dropna().unique().tolist()
 if route_options:
     route_options.sort()
-    selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
+    # selected_route = st.sidebar.selectbox("Choose a Route", ["None"] + route_options)
+    selected_route = st.sidebar.selectbox("Choose a Route", route_options, index=route_options.index("777") if "777" in route_options else 0)
 else:
     st.error("No routes found in static data.")
     st.stop()
@@ -37,6 +38,7 @@ else:
 with st.spinner("Fetching real-time data..."):
     realtime_df = get_realtime_vehicles()
     trip_updates_df = get_trip_updates()
+    vehicle_updates_df=get_vehicle_updates()
 
     if realtime_df.empty:
         st.warning("No real-time vehicle data available.")
@@ -45,7 +47,7 @@ with st.spinner("Fetching real-time data..."):
         st.warning("No trip updates available.")
 
 # Initialize Map
-m = folium.Map(location=[-27.4698, 153.0251], zoom_start=12, tiles="cartodb positron")
+m = folium.Map(location=[-28.0167, 153.4000], zoom_start=12, tiles="cartodb positron")
 
 # Display vehicle counts
 if not realtime_df.empty:
@@ -109,7 +111,8 @@ if not trip_updates_df.empty:
             st.info(f"No trip updates available for route {selected_route}.")
     else:
         # Display all trip updates
-        st.dataframe(trip_updates_df)
+        # st.dataframe(trip_updates_df)
+        st.dataframe(vehicle_updates_df)
 else:
     st.info("No trip updates available.")
 
