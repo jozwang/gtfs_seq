@@ -3,4 +3,5 @@ pandas
 requests
 folium
 streamlit-folium
-google-transit-protobuf
+gtfs-realtime-bindings
+protobuf
