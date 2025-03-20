@@ -16,76 +16,41 @@ def download_gtfs():
     except requests.RequestException as e:
         st.error(f"Error downloading GTFS data: {e}")
         return None
-    except zipfile.BadZipFile as e:
-        st.error(f"Invalid ZIP file: {e}")
-        return None
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
-        return None
 
 def list_gtfs_files(zip_obj):
     """List all files in the GTFS ZIP archive."""
-    if not zip_obj:
-        return []
-    try:
-        return zip_obj.namelist()
-    except Exception as e:
-        st.error(f"Error listing files: {e}")
-        return []
+    return zip_obj.namelist() if zip_obj else []
 
 def extract_file(zip_obj, filename):
     """Extract a file from a GTFS ZIP archive and return as a DataFrame."""
-    if not zip_obj:
-        return pd.DataFrame()
-    
     try:
         with zip_obj.open(filename) as file:
             return pd.read_csv(file, dtype=str, low_memory=False)
-    except KeyError:
-        st.warning(f"File not found in archive: {filename}")
-        return pd.DataFrame()
     except Exception as e:
         st.warning(f"Could not read {filename}: {e}")
         return pd.DataFrame()
 
 def load_static_gtfs():
     """Load static GTFS data and return stops and routes."""
-    try:
-        zip_obj = download_gtfs()
-        if not zip_obj:
-            st.error("Failed to download GTFS data.")
-            return pd.DataFrame()
-        
-        file_list = list_gtfs_files(zip_obj)
-        
-        # Extract necessary files
-        routes_df = extract_file(zip_obj, "routes.txt")
-        stops_df = extract_file(zip_obj, "stops.txt")
-        trips_df = extract_file(zip_obj, "trips.txt")
-        stop_times_df = extract_file(zip_obj, "stop_times.txt")
-        
-        if routes_df.empty:
-            st.error("Failed to extract routes data.")
-            return pd.DataFrame()
-        if stops_df.empty:
-            st.error("Failed to extract stops data.")
-            return pd.DataFrame()
-        if trips_df.empty:
-            st.error("Failed to extract trips data.")
-            return pd.DataFrame()
-        if stop_times_df.empty:
-            st.error("Failed to extract stop times data.")
-            return pd.DataFrame()
-
-        # Merge data
-        stops_data = stop_times_df.merge(trips_df, on="trip_id", how="left")
-        stops_data = stops_data.merge(routes_df, on="route_id", how="left")
-        stops_data = stops_data.merge(stops_df, on="stop_id", how="left")
-        
-        # Skip datetime conversion as it's not necessary for basic functionality
-        # and can be problematic with times past midnight
-        
-        return stops_data
-    except Exception as e:
-        st.error(f"Error loading static GTFS data: {e}")
+    zip_obj = download_gtfs()
+    if not zip_obj:
         return pd.DataFrame()
+    
+    file_list = list_gtfs_files(zip_obj)
+    
+    # Extract necessary files
+    routes_df = extract_file(zip_obj, "routes.txt")
+    stops_df = extract_file(zip_obj, "stops.txt")
+    trips_df = extract_file(zip_obj, "trips.txt")
+    stop_times_df = extract_file(zip_obj, "stop_times.txt")
+    
+    if routes_df.empty or stops_df.empty or trips_df.empty or stop_times_df.empty:
+        return pd.DataFrame()
+
+    stops_data = stop_times_df.merge(trips_df, on="trip_id", how="left")
+    stops_data = stops_data.merge(routes_df, on="route_id", how="left")
+    stops_data = stops_data.merge(stops_df, on="stop_id", how="left")
+    
+    stops_data["arrival_time"] = pd.to_datetime(stops_data["arrival_time"], format="%H:%M:%S", errors="coerce")
+    
+    return stops_data
