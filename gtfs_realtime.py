@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-import streamlit as st
 from google.transit import gtfs_realtime_pb2
 from datetime import datetime
 
@@ -21,28 +20,26 @@ def get_realtime_vehicles():
     if not content:
         return pd.DataFrame()
     
-    try:
-        feed.ParseFromString(content)
-        vehicles = []
-        
-        for entity in feed.entity:
-            if entity.HasField("vehicle"):
-                vehicle = entity.vehicle
-                vehicle_data = {
-                    "trip_id": vehicle.trip.trip_id if vehicle.HasField("trip") else "",
-                    "route_id": vehicle.trip.route_id if vehicle.HasField("trip") else "",
-                    "vehicle_id": vehicle.vehicle.id if vehicle.HasField("vehicle") else "",
-                    "lat": vehicle.position.latitude if vehicle.HasField("position") else 0,
-                    "lon": vehicle.position.longitude if vehicle.HasField("position") else 0,
-                    "speed": round(vehicle.position.speed * 3.6, 1) if vehicle.HasField("position") and vehicle.position.HasField("speed") else 0,
-                    "realtime_timestamp": vehicle.timestamp if vehicle.HasField("timestamp") else 0
-                }
-                vehicles.append(vehicle_data)
-        
-        return pd.DataFrame(vehicles)
-    except Exception as e:
-        st.error(f"Error parsing vehicle positions: {e}")
-        return pd.DataFrame()
+    feed.ParseFromString(content)
+    vehicles = []
+    # timestamp = datetime.utcnow()
+    
+    for entity in feed.entity:
+        if entity.HasField("vehicle"):
+            vehicle = entity.vehicle
+            vehicles.append({
+                "trip_id": vehicle.trip.trip_id,
+                "route_id": vehicle.trip.route_id,
+                "vehicle_id": vehicle.vehicle.label,
+                "lat": vehicle.position.latitude,
+                "lon": vehicle.position.longitude,
+                "Stop Sequence": vehicle.current_stop_sequence ,
+                "Stop ID": vehicle.stop_id ,
+                "current_status": vehicle.current_status ,
+                "Timestamp": vehicle.timestamp if vehicle.HasField("timestamp") else "Unknown"
+            })
+    
+    return pd.DataFrame(vehicles)
 
 def get_trip_updates():
     """Fetch trip updates (delays, cancellations) from GTFS-RT API."""
@@ -51,29 +48,31 @@ def get_trip_updates():
     if not content:
         return pd.DataFrame()
     
-    try:
-        feed.ParseFromString(content)
-        updates = []
-        
-        for entity in feed.entity:
-            if entity.HasField("trip_update"):
-                trip_update = entity.trip_update
-                delay = None
-                
-                if len(trip_update.stop_time_update) > 0:
-                    stu = trip_update.stop_time_update[0]
-                    if stu.HasField("arrival") and stu.arrival.HasField("delay"):
-                        delay = stu.arrival.delay
-                
-                updates.append({
-                    "trip_id": trip_update.trip.trip_id,
-                    "route_id": trip_update.trip.route_id,
-                    "delay": delay if delay is not None else 0,
-                    "delay_minutes": round(delay/60, 1) if delay is not None else 0,
-                    "status": "Delayed" if delay and delay > 180 else "On Time"
-                })
-        
-        return pd.DataFrame(updates)
-    except Exception as e:
-        st.error(f"Error parsing trip updates: {e}")
-        return pd.DataFrame()
+    feed.ParseFromString(content)
+    updates = []
+    
+    for entity in feed.entity:
+        if entity.HasField("trip_update"):
+            trip_update = entity.trip_update
+            delay = trip_update.stop_time_update[0].arrival.delay if trip_update.stop_time_update else None
+            updates.append({
+                "trip_id": trip_update.trip.trip_id,
+                "route_id": trip_update.trip.route_id,
+                "delay": delay,
+                "status": "Delayed" if delay and delay > 300 else "On Time"
+            })
+    
+    return pd.DataFrame(updates)
+
+def get_vehicle_updates():
+    """Merge real-time vehicle positions with trip updates on trip_id and route_id."""
+    vehicles_df = get_realtime_vehicles()
+    updates_df = get_trip_updates()
+    
+    if vehicles_df.empty:
+        return updates_df
+    if updates_df.empty:
+        return vehicles_df
+    
+    veh_update = vehicles_df.merge(updates_df, on=["trip_id", "route_id"], how="left")
+    return veh_update
