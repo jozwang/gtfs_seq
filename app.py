@@ -71,9 +71,10 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
     
     # Add vehicles as markers
     for _, row in vehicles_df.iterrows():
+        color = "green" if row["status"] == "On Time" else "orange" if row["status"] == "Delayed" else "red"
         folium.Marker(
             location=[row["lat"], row["lon"]],
-            icon=folium.Icon(color="blue", icon="bus", prefix="fa"),
+            icon=folium.Icon(color=color, icon="bus", prefix="fa"),
             popup=f"Vehicle {row['vehicle_id']} on Route {row['route_id']}"
         ).add_to(m)
     
