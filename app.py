@@ -78,6 +78,11 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
             icon=folium.Icon(color=color, icon="bus", prefix="fa"),
             popup=f"Vehicle {row['vehicle_id']} on Route {row['route_id']}"
         ).add_to(m)
+
+        folium.Marker(
+                location=[row["lat"], row["lon"]],
+                icon=folium.DivIcon(html=f'<div style="font-size: 12px; font-weight: bold; color: black; text-align: center;">{row["vehicle_id"]}-{f"At stop:{row['Stop Sequence']}"}</div>')
+            ).add_to(m)
     
     # Add route shapes as polylines
     if route_shapes is not None and not route_shapes.empty:
