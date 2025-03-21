@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import time
 import pytz
 import pydeck as pdk
-import get_vehicle_updates from gtfs_reatime
+import get_vehicle_updates from gtfs_realtime
 import load_gtfs_data from gtfs_static
 
 routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
