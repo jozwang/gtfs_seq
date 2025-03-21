@@ -101,6 +101,22 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
 st.set_page_config(layout="wide")
 st.title("GTFS Realtime Vehicle Fields")
 
+# Initialize session state variables if they don't exist
+if "last_vehicle_update" not in st.session_state:
+    st.session_state.last_vehicle_update = None
+if "last_gtfs_update" not in st.session_state:
+    st.session_state.last_gtfs_update = None
+if "last_refresh_check" not in st.session_state:
+    st.session_state.last_refresh_check = datetime.now()
+if "vehicles_df" not in st.session_state:
+    st.session_state.vehicles_df = None
+if "routes_df" not in st.session_state:
+    st.session_state.routes_df = None
+if "trips_df" not in st.session_state:
+    st.session_state.trips_df = None
+if "shapes_df" not in st.session_state:
+    st.session_state.shapes_df = None
+    
 # Cache the last selection
 if "selected_region" not in st.session_state:
     st.session_state.selected_region = "Gold Coast"
