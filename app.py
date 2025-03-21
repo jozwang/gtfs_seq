@@ -111,6 +111,58 @@ if "last_refreshed" not in st.session_state:
 if "next_refresh" not in st.session_state:
     st.session_state["next_refresh"] = "N/A"
 
+
+# Global variables to track last update times
+if "last_vehicle_update" not in st.session_state:
+    st.session_state.last_vehicle_update = None
+if "last_gtfs_update" not in st.session_state:
+    st.session_state.last_gtfs_update = None
+if "last_refresh_check" not in st.session_state:
+    st.session_state.last_refresh_check = datetime.now()
+
+# Function to check if GTFS data needs daily refresh
+def check_gtfs_refresh():
+    now = datetime.now()
+    # If we haven't refreshed GTFS data today
+    if (st.session_state.last_gtfs_update is None or 
+        st.session_state.last_gtfs_update.date() < now.date()):
+        # Load GTFS data
+        routes_df, trips_df, shapes_df = load_gtfs_data()
+        st.session_state.routes_df = routes_df
+        st.session_state.trips_df = trips_df
+        st.session_state.shapes_df = shapes_df
+        st.session_state.last_gtfs_update = now
+        return True
+    return False
+
+# Function to check if vehicle data needs update (every 30 seconds)
+def check_vehicle_update():
+    now = datetime.now()
+    # If we haven't updated vehicle data in the last 30 seconds
+    if (st.session_state.last_vehicle_update is None or 
+        (now - st.session_state.last_vehicle_update).total_seconds() >= 30):
+        # Get updated vehicle data
+        vehicles_df = get_vehicle_updates()
+        st.session_state.vehicles_df = vehicles_df
+        st.session_state.last_vehicle_update = now
+        return True
+    return False
+
+# Check for updates at the beginning and every 30 seconds
+now = datetime.now()
+if ((st.session_state.last_refresh_check is None) or 
+    (now - st.session_state.last_refresh_check).total_seconds() >= 30):
+    
+    check_gtfs_refresh()
+    check_vehicle_update()
+    st.session_state.last_refresh_check = now
+
+# Get data from session state
+vehicles_df = st.session_state.vehicles_df
+routes_df = st.session_state.routes_df
+trips_df = st.session_state.trips_df
+shapes_df = st.session_state.shapes_df
+
 # Sidebar filters
 st.sidebar.title("🚍 Select Filters")
 
@@ -188,3 +240,21 @@ else:
                 lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
             )
             plot_map(filtered_vehicles)
+
+# Add update time information at the bottom of the sidebar
+st.sidebar.markdown("---")
+if st.session_state.last_vehicle_update:
+    st.sidebar.text(f"Vehicle data last updated: {st.session_state.last_vehicle_update.strftime('%H:%M:%S')}")
+else:
+    st.sidebar.text("Vehicle data not yet updated")
+
+if st.session_state.last_gtfs_update:
+    st.sidebar.text(f"GTFS data last updated: {st.session_state.last_gtfs_update.strftime('%Y-%m-%d')}")
+else:
+    st.sidebar.text("GTFS data not yet updated")
+
+# Add auto-refresh button (for manual refresh if needed)
+if st.sidebar.button("Refresh Data Now"):
+    check_gtfs_refresh()
+    check_vehicle_update()
+    st.experimental_rerun()
