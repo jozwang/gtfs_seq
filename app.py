@@ -19,40 +19,7 @@ routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
 # Fetch vehicle data
 vehicles_df = get_vehicle_updates()
 
-# Initialize session state variables if they don't exist
-if "last_vehicle_update" not in st.session_state:
-    st.session_state.last_vehicle_update = None
-if "last_gtfs_update" not in st.session_state:
-    st.session_state.last_gtfs_update = None
-if "last_refresh_check" not in st.session_state:
-    st.session_state.last_refresh_check = datetime.now()
-if "vehicles_df" not in st.session_state:
-    st.session_state.vehicles_df = None
-if "routes_df" not in st.session_state:
-    st.session_state.routes_df = None
-if "trips_df" not in st.session_state:
-    st.session_state.trips_df = None
-if "shapes_df" not in st.session_state:
-    st.session_state.shapes_df = None
-    
-# Cache the last selection
-if "selected_region" not in st.session_state:
-    st.session_state.selected_region = "Gold Coast"
-if "selected_route" not in st.session_state:
-    st.session_state.selected_route = "777"
-if "last_refreshed" not in st.session_state:
-    st.session_state["last_refreshed"] = "N/A"
-if "next_refresh" not in st.session_state:
-    st.session_state["next_refresh"] = "N/A"
 
-
-# Global variables to track last update times
-if "last_vehicle_update" not in st.session_state:
-    st.session_state.last_vehicle_update = None
-if "last_gtfs_update" not in st.session_state:
-    st.session_state.last_gtfs_update = None
-if "last_refresh_check" not in st.session_state:
-    st.session_state.last_refresh_check = datetime.now()
 
 # Function to check if GTFS data needs daily refresh
 def check_gtfs_refresh():
@@ -259,25 +226,3 @@ else:
             )
             plot_map(filtered_vehicles)
 
-# Add update time information at the bottom of the sidebar
-st.sidebar.markdown("---")
-if st.session_state.last_vehicle_update:
-    st.sidebar.text(f"Vehicle data last updated: {st.session_state.last_vehicle_update.strftime('%H:%M:%S')}")
-else:
-    st.sidebar.text("Vehicle data not yet updated")
-
-if st.session_state.last_gtfs_update:
-    st.sidebar.text(f"GTFS data last updated: {st.session_state.last_gtfs_update.strftime('%Y-%m-%d')}")
-else:
-    st.sidebar.text("GTFS data not yet updated")
-
-# Add auto-refresh button (for manual refresh if needed)
-if st.sidebar.button("Refresh Data Now"):
-    st.session_state.vehicles_df = get_vehicle_updates()
-    st.session_state.last_vehicle_update = datetime.now()
-    routes_df, trips_df, shapes_df = load_gtfs_data()
-    st.session_state.routes_df = routes_df
-    st.session_state.trips_df = trips_df
-    st.session_state.shapes_df = shapes_df
-    st.session_state.last_gtfs_update = datetime.now()
-    st.experimental_rerun()
