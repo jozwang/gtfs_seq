@@ -20,50 +20,6 @@ routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
 vehicles_df = get_vehicle_updates()
 
 
-
-# Function to check if GTFS data needs daily refresh
-def check_gtfs_refresh():
-    now = datetime.now()
-    # If we haven't refreshed GTFS data today
-    if (st.session_state.last_gtfs_update is None or 
-        st.session_state.last_gtfs_update.date() < now.date()):
-        # Load GTFS data
-        routes_df, trips_df, shapes_df = load_gtfs_data()
-        st.session_state.routes_df = routes_df
-        st.session_state.trips_df = trips_df
-        st.session_state.shapes_df = shapes_df
-        st.session_state.last_gtfs_update = now
-        return routes_df, trips_df, shapes_df
-    return st.session_state.routes_df, st.session_state.trips_df, st.session_state.shapes_df
-
-# Function to check if vehicle data needs update (every 30 seconds)
-def check_vehicle_update():
-    now = datetime.now()
-    # If we haven't updated vehicle data in the last 30 seconds
-    if (st.session_state.last_vehicle_update is None or 
-        (now - st.session_state.last_vehicle_update).total_seconds() >= 30):
-        # Get updated vehicle data
-        vehicles_df = get_vehicle_updates()
-        st.session_state.vehicles_df = vehicles_df
-        st.session_state.last_vehicle_update = now
-        return vehicles_df
-    return st.session_state.vehicles_df
-
-# Check for updates at the beginning and every 30 seconds
-now = datetime.now()
-if ((st.session_state.last_refresh_check is None) or 
-    (now - st.session_state.last_refresh_check).total_seconds() >= 30):
-    
-    routes_df, trips_df, shapes_df = check_gtfs_refresh()
-    vehicles_df = check_vehicle_update()
-    st.session_state.last_refresh_check = now
-        
-# Get data from session state
-vehicles_df = st.session_state.vehicles_df
-routes_df = st.session_state.routes_df
-trips_df = st.session_state.trips_df
-shapes_df = st.session_state.shapes_df
-
 def get_route_shapes(route_id, direction, trips_df, shapes_df):
     """Retrieve and structure shape points for a given route ID and direction."""
     trip_shapes = trips_df[(trips_df["route_id"] == route_id) & (trips_df["direction_id"] == str(direction))][["shape_id"]].drop_duplicates()
