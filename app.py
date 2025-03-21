@@ -171,6 +171,12 @@ else:
             # Filter vehicles that are on trips with the selected direction
             filtered_vehicles_by_direction = filtered_vehicles[filtered_vehicles["trip_id"].isin(trips_on_selected_direction)]
             
+            # Add color coding to vehicles based on status
+            filtered_vehicles_by_direction = filtered_vehicles_by_direction.copy()
+            filtered_vehicles_by_direction["color"] = filtered_vehicles_by_direction["status"].apply(
+                lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
+            )
+            
             # Get shapes for this route and direction
             route_shapes = get_route_shapes(route_id, selected_direction, trips_df, shapes_df)
             
@@ -178,4 +184,9 @@ else:
             plot_map(filtered_vehicles_by_direction, route_shapes)
         else:
             st.warning(f"No direction information available for route {st.session_state.selected_route}")
+            # Add color coding for this case as well
+            filtered_vehicles = filtered_vehicles.copy()
+            filtered_vehicles["color"] = filtered_vehicles["status"].apply(
+                lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
+            )
             plot_map(filtered_vehicles)
