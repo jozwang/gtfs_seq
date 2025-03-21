@@ -132,8 +132,8 @@ def check_gtfs_refresh():
         st.session_state.trips_df = trips_df
         st.session_state.shapes_df = shapes_df
         st.session_state.last_gtfs_update = now
-        return True
-    return False
+        return routes_df, trips_df, shapes_df
+    return st.session_state.routes_df, st.session_state.trips_df, st.session_state.shapes_df
 
 # Function to check if vehicle data needs update (every 30 seconds)
 def check_vehicle_update():
@@ -145,18 +145,18 @@ def check_vehicle_update():
         vehicles_df = get_vehicle_updates()
         st.session_state.vehicles_df = vehicles_df
         st.session_state.last_vehicle_update = now
-        return True
-    return False
+        return vehicles_df
+    return st.session_state.vehicles_df
 
 # Check for updates at the beginning and every 30 seconds
 now = datetime.now()
 if ((st.session_state.last_refresh_check is None) or 
     (now - st.session_state.last_refresh_check).total_seconds() >= 30):
     
-    check_gtfs_refresh()
-    check_vehicle_update()
+    routes_df, trips_df, shapes_df = check_gtfs_refresh()
+    vehicles_df = check_vehicle_update()
     st.session_state.last_refresh_check = now
-
+        
 # Get data from session state
 vehicles_df = st.session_state.vehicles_df
 routes_df = st.session_state.routes_df
