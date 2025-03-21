@@ -3,6 +3,6 @@ requests
 pandas
 folium
 streamlit-folium
-google-transit
+gtfs-realtime-bindings
 pydeck
 pytz
