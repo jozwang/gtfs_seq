@@ -10,73 +10,12 @@ from datetime import datetime, timedelta
 import time
 import pytz
 import pydeck as pdk
+import gtfs_reatime
+import gtfs_static
 
-# GTFS Static Data URL
-GTFS_ZIP_URL = "https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-translink/resource/e43b6b9f-fc2b-4630-a7c9-86dd5483552b/download"
-
-def download_gtfs():
-    """Download GTFS ZIP file and return as an in-memory object."""
-    try:
-        response = requests.get(GTFS_ZIP_URL, timeout=10)
-        response.raise_for_status()
-        return zipfile.ZipFile(io.BytesIO(response.content))
-    except requests.RequestException as e:
-        st.error(f"Error downloading GTFS data: {e}")
-        return None
-
-def extract_file(zip_obj, filename):
-    """Extract a file from GTFS ZIP archive and return as a DataFrame."""
-    try:
-        with zip_obj.open(filename) as file:
-            return pd.read_csv(file, dtype=str, low_memory=False)
-    except Exception as e:
-        return pd.DataFrame()
-
-def load_gtfs_data():
-    """Load GTFS data."""
-    zip_obj = download_gtfs()
-    if not zip_obj:
-        return None, None, None, None, None
-
-    routes_df = extract_file(zip_obj, "routes.txt")
-    stops_df = extract_file(zip_obj, "stops.txt")
-    trips_df = extract_file(zip_obj, "trips.txt")
-    stop_times_df = extract_file(zip_obj, "stop_times.txt")
-    shapes_df = extract_file(zip_obj, "shapes.txt")
-    
-    return routes_df, stops_df, trips_df, stop_times_df, shapes_df
-
-def fetch_gtfs_rt(url):
-    """Fetch GTFS-RT data."""
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        return response.content
-    except requests.RequestException:
-        return None
-
-def get_realtime_vehicles():
-    """Fetch real-time vehicle positions."""
-    feed = gtfs_realtime_pb2.FeedMessage()
-    content = fetch_gtfs_rt("https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions/Bus")
-    if not content:
-        return pd.DataFrame()
-    
-    feed.ParseFromString(content)
-    vehicles = []
-    for entity in feed.entity:
-        if entity.HasField("vehicle"):
-            vehicle = entity.vehicle
-            vehicles.append({
-                "trip_id": vehicle.trip.trip_id,
-                "route_id": vehicle.trip.route_id,
-                "vehicle_id": vehicle.vehicle.label,
-                "lat": vehicle.position.latitude,
-                "lon": vehicle.position.longitude,
-                "status": vehicle.current_status,
-                "timestamp": datetime.fromtimestamp(vehicle.timestamp, pytz.timezone('Australia/Brisbane')).strftime('%Y-%m-%d %H:%M:%S %Z') if vehicle.HasField("timestamp") else "Unknown"
-            })
-    return pd.DataFrame(vehicles)
+routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
+# Fetch vehicle data
+vehicles_df = get_vehicle_updates()
 
 def plot_map(vehicles_df, route_shapes=None, route_stops=None):
     """Plot real-time vehicles and optionally route path on a map."""
@@ -101,10 +40,9 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
     folium_static(m)
 
 # Streamlit UI
-st.title("Public Transport Real-Time and Static Data Visualization")
+st.title("SEQ Public Transport Real-Time on a Map")
 
-routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
-vehicles_df = get_realtime_vehicles()
+
 
 if not vehicles_df.empty:
     route_options = ["All Routes"] + sorted(vehicles_df["route_id"].unique())
