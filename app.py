@@ -13,11 +13,11 @@ import pydeck as pdk
 from gtfs_realtime import get_vehicle_updates 
 from gtfs_static import load_gtfs_data 
 
-# # Load GTFS static data
-# routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
+# Load GTFS static data
+routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
 
-# # Fetch vehicle data
-# vehicles_df = get_vehicle_updates()
+# Fetch vehicle data
+vehicles_df = get_vehicle_updates()
 
 # Global variables to track last update times
 if "last_vehicle_update" not in st.session_state:
