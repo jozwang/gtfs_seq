@@ -6,3 +6,4 @@ streamlit-folium
 gtfs-realtime-bindings
 pydeck
 pytz
+shapely
