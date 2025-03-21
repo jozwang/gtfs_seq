@@ -72,6 +72,7 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
     # Add vehicles as markers
     for _, row in vehicles_df.iterrows():
         color = "green" if row["status"] == "On Time" else "orange" if row["status"] == "Delayed" else "red"
+        
         folium.Marker(
             location=[row["lat"], row["lon"]],
             icon=folium.Icon(color=color, icon="bus", prefix="fa"),
@@ -103,7 +104,15 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
 st.set_page_config(layout="wide")
 st.title("GTFS Realtime Vehicle Fields")
 
-
+# Cache the last selection
+if "selected_region" not in st.session_state:
+    st.session_state.selected_region = "Gold Coast"
+if "selected_route" not in st.session_state:
+    st.session_state.selected_route = "777"
+if "last_refreshed" not in st.session_state:
+    st.session_state["last_refreshed"] = "N/A"
+if "next_refresh" not in st.session_state:
+    st.session_state["next_refresh"] = "N/A"
 
 # Sidebar filters
 st.sidebar.title("🚍 Select Filters")
