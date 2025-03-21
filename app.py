@@ -19,6 +19,8 @@ routes_df, stops_df, trips_df, stop_times_df, shapes_df = load_gtfs_data()
 # Fetch vehicle data
 vehicles_df = get_vehicle_updates()
 
+
+
 def get_route_shapes(route_id, direction, trips_df, shapes_df):
     """Retrieve and structure shape points for a given route ID and direction."""
     trip_shapes = trips_df[(trips_df["route_id"] == route_id) & (trips_df["direction_id"] == str(direction))][["shape_id"]].drop_duplicates()
@@ -97,41 +99,83 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
     # Display map
     folium_static(m)
 
-# Streamlit UI
-st.title("SEQ Public Transport Real-Time on a Map")
+# Streamlit App
+st.set_page_config(layout="wide")
+st.title("GTFS Realtime Vehicle Fields")
 
-if not vehicles_df.empty:
-    route_options = ["All Routes"] + sorted(vehicles_df["route_id"].unique())
-    selected_route = st.selectbox("Select a Route", route_options)
+# Cache the last selection
+if "selected_region" not in st.session_state:
+    st.session_state.selected_region = "Gold Coast"
+if "selected_route" not in st.session_state:
+    st.session_state.selected_route = "777"
+if "last_refreshed" not in st.session_state:
+    st.session_state["last_refreshed"] = "N/A"
+if "next_refresh" not in st.session_state:
+    st.session_state["next_refresh"] = "N/A"
+
+# Sidebar filters
+st.sidebar.title("🚍 Select Filters")
+
+# Region selection
+region_options = sorted(vehicles_df["region"].unique())
+st.session_state.selected_region = st.sidebar.selectbox("Select a Region", region_options, index=region_options.index(st.session_state.selected_region) if st.session_state.selected_region in region_options else 0)
+
+# Filter routes based on selected region
+filtered_df = vehicles_df[vehicles_df["region"] == st.session_state.selected_region]
+route_options = ["All Routes"] + sorted(filtered_df["route_name"].unique())
+st.session_state.selected_route = st.sidebar.selectbox(
+    "Select a Route", 
+    route_options, 
+    index=route_options.index(st.session_state.selected_route) if st.session_state.selected_route in route_options else 0
+)
+
+# Apply filters
+if st.session_state.selected_route == "All Routes":
+    display_df = filtered_df  # Show all vehicles in the region
     
-    if selected_route != "All Routes" and trips_df is not None:
-        # Filter vehicles to show only selected route
-        filtered_vehicles = vehicles_df[vehicles_df["route_id"] == selected_route]
-        
-        if filtered_vehicles.empty:
-            st.warning(f"No vehicles currently active on route {selected_route}")
-            plot_map(filtered_vehicles)
-        else:
-            # Get available directions for this route
-            directions = trips_df[trips_df["route_id"] == selected_route]["direction_id"].unique()
-            
-            if len(directions) > 0:
-                selected_direction = st.radio(
-                    "Select Direction", 
-                    options=directions, 
-                    format_func=lambda d: "Outbound" if d == "0" else "Inbound"
-                )
-                
-                # Get shapes for this route and direction
-                route_shapes = get_route_shapes(selected_route, selected_direction, trips_df, shapes_df)
-                
-                # Plot map with vehicles and route
-                plot_map(filtered_vehicles, route_shapes)
-            else:
-                st.warning(f"No direction information available for route {selected_route}")
-                plot_map(filtered_vehicles)
-    else:
-        # Show all vehicles without route shapes
-        plot_map(vehicles_df)
+    # Show status filter only when "All Routes" is selected
+    status_options = ["All Statuses"] + sorted(display_df["status"].unique())
+    selected_status = st.sidebar.selectbox("Select Status", status_options, index=0)
+    
+    # Filter by status if a specific status is selected
+    if selected_status != "All Statuses":
+        display_df = display_df[display_df["status"] == selected_status]
+    
+    # Plot map with all filtered vehicles
+    plot_map(display_df)
 else:
-    st.error("No real-time vehicle data available")
+    # Get the route_id for the selected route name
+    route_id = filtered_df[filtered_df["route_name"] == st.session_state.selected_route]["route_id"].iloc[0]
+    
+    # Filter vehicles to show only selected route
+    filtered_vehicles = filtered_df[filtered_df["route_id"] == route_id]
+    
+    if filtered_vehicles.empty:
+        st.warning(f"No vehicles currently active on route {st.session_state.selected_route}")
+        plot_map(filtered_vehicles)
+    else:
+        # Get available directions for this route
+        directions = trips_df[trips_df["route_id"] == route_id]["direction_id"].unique()
+        
+        if len(directions) > 0:
+            selected_direction = st.sidebar.radio(
+                "Select Direction",
+                options=directions,
+                format_func=lambda d: "Outbound" if d == "0" else "Inbound"
+            )
+            
+            # Filter vehicles by selected direction
+            trips_on_selected_direction = trips_df[(trips_df["route_id"] == route_id) & 
+                                                 (trips_df["direction_id"] == selected_direction)]["trip_id"].unique()
+            
+            # Filter vehicles that are on trips with the selected direction
+            filtered_vehicles_by_direction = filtered_vehicles[filtered_vehicles["trip_id"].isin(trips_on_selected_direction)]
+            
+            # Get shapes for this route and direction
+            route_shapes = get_route_shapes(route_id, selected_direction, trips_df, shapes_df)
+            
+            # Plot map with filtered vehicles and route
+            plot_map(filtered_vehicles_by_direction, route_shapes)
+        else:
+            st.warning(f"No direction information available for route {st.session_state.selected_route}")
+            plot_map(filtered_vehicles)
