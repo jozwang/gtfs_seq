@@ -1,7 +1,8 @@
 streamlit
-pandas
 requests
+pandas
 folium
 streamlit-folium
-google-transit-protobuf
-protobuf
+google-transit
+pydeck
+pytz
