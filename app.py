@@ -119,6 +119,12 @@ if "last_refreshed" not in st.session_state:
 if "next_refresh" not in st.session_state:
     st.session_state["next_refresh"] = "N/A"
 
+# Check if 'vehicles_df' is already in session_state
+if 'vehicles_df' not in st.session_state:
+    st.session_state.vehicles_df = get_vehicle_updates()
+
+
+    
 # Sidebar filters
 st.sidebar.title("🚍 Select Filters")
 
@@ -197,3 +203,11 @@ else:
             )
             plot_map(filtered_vehicles)
 
+# Refresh button logic
+if st.sidebar.button("🔄 Refresh Data"):
+    # Fetch new data when the refresh button is clicked
+    st.session_state.vehicles_df = get_vehicle_updates()
+
+# Display the vehicle data
+st.write("Vehicle Data:")
+st.dataframe(st.session_state.filtered_vehicles_by_direction)
