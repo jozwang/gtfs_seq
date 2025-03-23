@@ -212,7 +212,7 @@ else:
             
             # Filter vehicles by selected direction
             trips_on_selected_direction = trips_df[(trips_df["route_id"] == route_id) & 
-                                                 (trips_df["direction_id"] == selected_direction)]["trip_id"].unique()
+                                                (trips_df["direction_id"] == selected_direction)]["trip_id"].unique()
             
             # Filter vehicles that are on trips with the selected direction
             filtered_vehicles_by_direction = filtered_vehicles[filtered_vehicles["trip_id"].isin(trips_on_selected_direction)].copy()
