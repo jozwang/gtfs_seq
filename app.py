@@ -127,25 +127,47 @@ if 'vehicles_df' not in st.session_state:
 # Sidebar filters
 st.sidebar.title("🚍 Select Filters")
 
+# Define a callback function for when region changes
+def on_region_change():
+    # Update routes based on new region
+    region_filtered_df = vehicles_df[vehicles_df["region"] == st.session_state.selected_region]
+    route_options = sorted(region_filtered_df["route_name"].unique())
+    
+    # Reset route selection if current selection is not available in the new region
+    if st.session_state.selected_route not in route_options and st.session_state.selected_route != "All Routes":
+        st.session_state.selected_route = "All Routes"
+
+# Define a callback for route changes
+def on_route_change():
+    # This function will be called when the route selectbox value changes
+    pass  # We just need the session state to update, no additional action required
+
 # Region selection
 region_options = sorted(vehicles_df["region"].unique())
-st.session_state.selected_region = st.sidebar.selectbox("Select a Region", region_options, index=region_options.index(st.session_state.selected_region) if st.session_state.selected_region in region_options else 0)
+st.sidebar.selectbox(
+    "Select a Region", 
+    region_options, 
+    index=region_options.index(st.session_state.selected_region) if hasattr(st.session_state, 'selected_region') and st.session_state.selected_region in region_options else 0,
+    key="selected_region",
+    on_change=on_region_change
+)
 
 # Filter routes based on selected region
 filtered_df = vehicles_df[vehicles_df["region"] == st.session_state.selected_region]
 route_options = ["All Routes"] + sorted(filtered_df["route_name"].unique())
+
+# Initialize selected_route in session state if it doesn't exist
+if not hasattr(st.session_state, 'selected_route'):
+    st.session_state.selected_route = "All Routes"
+
 # Route selection
-selected_route = st.sidebar.selectbox(
+st.sidebar.selectbox(
     "Select a Route", 
     route_options, 
-    index=route_options.index(st.session_state.selected_route) if st.session_state.selected_route in route_options else 0
+    index=route_options.index(st.session_state.selected_route) if st.session_state.selected_route in route_options else 0,
+    key="selected_route",
+    on_change=on_route_change
 )
-
-# Only update session state if the selection actually changed
-if selected_route != st.session_state.selected_route:
-    st.session_state.selected_route = selected_route
-    st.rerun()  # Using st.rerun() instead of st.experimental_rerun()
-
 
 # Apply filters
 if st.session_state.selected_route == "All Routes":
