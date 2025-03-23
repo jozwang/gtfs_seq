@@ -135,11 +135,18 @@ st.session_state.selected_region = st.sidebar.selectbox("Select a Region", regio
 # Filter routes based on selected region
 filtered_df = vehicles_df[vehicles_df["region"] == st.session_state.selected_region]
 route_options = ["All Routes"] + sorted(filtered_df["route_name"].unique())
-st.session_state.selected_route = st.sidebar.selectbox(
+# Route selection
+selected_route = st.sidebar.selectbox(
     "Select a Route", 
     route_options, 
     index=route_options.index(st.session_state.selected_route) if st.session_state.selected_route in route_options else 0
 )
+
+# Only update session state if the selection actually changed
+if selected_route != st.session_state.selected_route:
+    st.session_state.selected_route = selected_route
+    st.experimental_rerun()  # Forces immediate rerun with updated value
+
 
 # Apply filters
 if st.session_state.selected_route == "All Routes":
