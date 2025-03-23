@@ -124,7 +124,6 @@ if 'vehicles_df' not in st.session_state:
     st.session_state.vehicles_df = get_vehicle_updates()
 
 
-    
 # Sidebar filters
 st.sidebar.title("🚍 Select Filters")
 
@@ -169,6 +168,12 @@ else:
     # Filter vehicles to show only selected route
     filtered_vehicles = filtered_df[filtered_df["route_id"] == route_id]
     
+    # Initialize filtered_vehicles_by_direction to be the same as filtered_vehicles by default
+    filtered_vehicles_by_direction = filtered_vehicles.copy()
+    filtered_vehicles_by_direction["color"] = filtered_vehicles_by_direction["status"].apply(
+        lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
+    )
+    
     if filtered_vehicles.empty:
         st.warning(f"No vehicles currently active on route {st.session_state.selected_route}")
         plot_map(filtered_vehicles)
@@ -188,10 +193,9 @@ else:
                                                  (trips_df["direction_id"] == selected_direction)]["trip_id"].unique()
             
             # Filter vehicles that are on trips with the selected direction
-            filtered_vehicles_by_direction = filtered_vehicles[filtered_vehicles["trip_id"].isin(trips_on_selected_direction)]
+            filtered_vehicles_by_direction = filtered_vehicles[filtered_vehicles["trip_id"].isin(trips_on_selected_direction)].copy()
             
             # Add color coding to vehicles based on status
-            filtered_vehicles_by_direction = filtered_vehicles_by_direction.copy()
             filtered_vehicles_by_direction["color"] = filtered_vehicles_by_direction["status"].apply(
                 lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
             )
@@ -209,6 +213,7 @@ else:
                 lambda status: "green" if status == "On Time" else "orange" if status == "Delayed" else "red"
             )
             plot_map(filtered_vehicles)
+            filtered_vehicles_by_direction = filtered_vehicles  # Make sure we have this defined
 
 # Refresh button logic
 if st.sidebar.button("🔄 Refresh Data"):
@@ -218,10 +223,6 @@ if st.sidebar.button("🔄 Refresh Data"):
 # Display the vehicle data
 st.write("Vehicle Data:")
 if st.session_state.selected_route != "All Routes":
-    if 'filtered_vehicles_by_direction' in locals():
-        st.session_state.filtered_vehicles_by_direction = filtered_vehicles_by_direction
-        st.dataframe(filtered_vehicles_by_direction)
-    else:
-        st.write("No filtered vehicle data to show.")
+    st.dataframe(filtered_vehicles_by_direction)
 else:
     st.dataframe(display_df)
