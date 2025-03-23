@@ -109,6 +109,12 @@ def plot_map(vehicles_df, route_shapes=None, route_stops=None):
 st.set_page_config(layout="wide")
 st.title("GTFS Realtime Vehicle Fields")
 
+
+
+
+# Sidebar filters
+st.sidebar.title("🚍 Select Filters")
+
 # Cache the last selection
 if "selected_region" not in st.session_state:
     st.session_state.selected_region = "Gold Coast"
@@ -122,10 +128,6 @@ if "next_refresh" not in st.session_state:
 # Check if 'vehicles_df' is already in session_state
 if 'vehicles_df' not in st.session_state:
     st.session_state.vehicles_df = get_vehicle_updates()
-
-
-# Sidebar filters
-st.sidebar.title("🚍 Select Filters")
 
 # Define a callback function for when region changes
 def on_region_change():
