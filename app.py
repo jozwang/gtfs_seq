@@ -144,7 +144,7 @@ selected_route = st.sidebar.selectbox(
 # Only update session state if the selection actually changed
 if selected_route != st.session_state.selected_route:
     st.session_state.selected_route = selected_route
-    st.experimental_rerun()  # Forces immediate rerun with updated value
+    st.rerun()  # Using st.rerun() instead of st.experimental_rerun()
 
 
 # Apply filters
