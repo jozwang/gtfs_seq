@@ -210,4 +210,11 @@ if st.sidebar.button("🔄 Refresh Data"):
 
 # Display the vehicle data
 st.write("Vehicle Data:")
-st.dataframe(st.session_state.filtered_vehicles_by_direction)
+if st.session_state.selected_route != "All Routes":
+    if 'filtered_vehicles_by_direction' in locals():
+        st.session_state.filtered_vehicles_by_direction = filtered_vehicles_by_direction
+        st.dataframe(filtered_vehicles_by_direction)
+    else:
+        st.write("No filtered vehicle data to show.")
+else:
+    st.dataframe(display_df)
